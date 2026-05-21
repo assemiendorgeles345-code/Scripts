@@ -62,6 +62,7 @@ function Convert-UnixTimestampToUTC {
 
 $stream = [System.IO.File]::OpenRead($File)
 $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8)
+$jwts = @()
 
 try {
     while (-not $reader.EndOfStream) {
@@ -71,36 +72,38 @@ try {
 
         foreach ($match in $matches) {
             $jwt = $match.Value
+            if (-not $jwts.Contains($jwt)) {
+                $jwts += $jwt
+                $parts = $jwt -split '\.'
+                if ($parts.Length -ge 2) {
+                    try {
+                        $decodedPayload = Decode-Base64Url $parts[1]
 
-            $parts = $jwt -split '\.'
-            if ($parts.Length -ge 2) {
-                try {
-                    $decodedPayload = Decode-Base64Url $parts[1]
+                        $payloadObject = $decodedPayload | ConvertFrom-Json
 
-                    $payloadObject = $decodedPayload | ConvertFrom-Json
+                        $aud = $payloadObject.aud
+                        $name = $payloadObject.name
+                        $upn = $payloadObject.upn
+                        $scp = $payloadObject.scp
+                        $iss = $payloadObject.iss
+                        $appDisplayName = $payloadObject.app_displayname
+                        $exp = $payloadObject.exp
 
-                    $aud = $payloadObject.aud
-                    $name = $payloadObject.name
-                    $upn = $payloadObject.upn
-                    $scp = $payloadObject.scp
-                    $iss = $payloadObject.iss
-                    $appDisplayName = $payloadObject.app_displayname
-                    $exp = $payloadObject.exp
+                        $expUTC = Convert-UnixTimestampToUTC $exp
 
-                    $expUTC = Convert-UnixTimestampToUTC $exp
-
-                    Write-Output "[*] JWT found"
-                    Write-Output "  name: $name"
-                    Write-Output "  upn: $upn"
-                    Write-Output "  exp: $expUTC"
-                    Write-Output "  iss: $iss"
-                    Write-Output "  aud: $aud"
-                    Write-Output "  app_displayname: $appDisplayName"
-                    Write-Output "  scp: $scp"
-                    Write-Output "  JWT: $jwt"
-                    Write-Output ""
-                } catch {
-                    Write-Output "Error decoding JWT: $jwt"
+                        Write-Output "[*] JWT found"
+                        Write-Output "  name: $name"
+                        Write-Output "  upn: $upn"
+                        Write-Output "  exp: $expUTC"
+                        Write-Output "  iss: $iss"
+                        Write-Output "  aud: $aud"
+                        Write-Output "  app_displayname: $appDisplayName"
+                        Write-Output "  scp: $scp"
+                        Write-Output "  JWT: $jwt"
+                        Write-Output ""
+                    } catch {
+                        Write-Output "Error decoding JWT: $jwt"
+                    }
                 }
             }
         }
